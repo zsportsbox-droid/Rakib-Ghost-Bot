@@ -1,40 +1,43 @@
 /**
- * @GHOST_UNIVERSAL_V8
- * @FEATURE: Universal Reply + Admin Check Fix + Invisible Mention
+ * @GHOST_MENTION_V9
+ * @FEATURE: Universal Reply + Admin Only + Fixed Loader
  * @AUTHOR: RAKIB ISLAM
  */
 
 module.exports = {
   config: {
     name: "gt",
-    version: "8.0",
+    version: "9.0",
     author: "Rakib Islam",
     countDown: 0,
-    role: 2, // 🛡️ Admin Only config (Optional for listing)
+    role: 2, // 🛡️ অ্যাডমিনদের জন্য
     category: "system",
     shortDescription: { en: "Ghost mention on any reply (Admin Only)" }
   },
 
+  // ফ্রেসওয়ার্কের এরর ফিক্স করার জন্য খালি onStart ফাংশন
+  onStart: async function () {},
+
   onChat: async function ({ api, event, usersData }) {
     if (!event.body) return;
 
-    // ১. Command Protection: Message jodi dot (.) diye shuru hoy tobe logic bondho thakbe
+    // ১. কমান্ড প্রটেকশন: ডট (.) দিয়ে শুরু হলে কোনো মেনশন হবে না
     if (event.body.startsWith(".")) return;
 
     const invisibleChar = "\u200B";
 
-    // ২. Reply & Admin Check: 
-    // Check kora hocche eta reply ki na ebong sender admin ki na
+    // ২. রিপ্লাই কন্ডিশন চেক
     if (event.type === "message_reply") {
       
-      // Amader manually admin role check korte hobe usersData theke
-      const userData = await usersData.get(event.senderID);
-      if (userData.role !== 2) return; 
-
-      const targetID = event.messageReply.senderID;
-      if (event.senderID === targetID) return;
-
       try {
+        // ৩. অ্যাডমিন চেক: ম্যানুয়ালি মেথড ব্যবহার করে
+        const userData = await usersData.get(event.senderID);
+        if (userData.role !== 2) return; 
+
+        const targetID = event.messageReply.senderID;
+        if (event.senderID === targetID) return;
+
+        // ৪. ইনভিজিবল মেনশন পাঠানো
         await api.sendMessage({
           body: event.body + invisibleChar,
           mentions: [{
@@ -43,7 +46,7 @@ module.exports = {
           }]
         }, event.threadID, event.messageID);
         
-        // Success Reaction
+        // ৫. সাকসেস রিয়েকশন
         await api.setMessageReaction("👻", event.messageID, () => {}, true);
         
       } catch (e) {
