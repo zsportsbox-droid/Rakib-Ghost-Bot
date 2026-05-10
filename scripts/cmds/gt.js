@@ -1,43 +1,45 @@
 /**
- * @GHOST_MENTION_V9
- * @FEATURE: Universal Reply + Admin Only + Fixed Loader
+ * @GHOST_MENTION_V10
+ * @FEATURE: Universal Reply + Admin Only + Framework Compatibility
  * @AUTHOR: RAKIB ISLAM
  */
 
 module.exports = {
   config: {
     name: "gt",
-    version: "9.0",
+    version: "10.0",
     author: "Rakib Islam",
     countDown: 0,
-    role: 2, // 🛡️ অ্যাডমিনদের জন্য
+    role: 2, // 🛡️ Admin Only
     category: "system",
     shortDescription: { en: "Ghost mention on any reply (Admin Only)" }
   },
 
-  // ফ্রেসওয়ার্কের এরর ফিক্স করার জন্য খালি onStart ফাংশন
-  onStart: async function () {},
+  onStart: async function ({ message }) {
+    return message.reply("🛡️ Ghost Mention System Active. Karo message-e reply diye kisu likhun (Admin Only).");
+  },
 
   onChat: async function ({ api, event, usersData }) {
-    if (!event.body) return;
-
-    // ১. কমান্ড প্রটেকশন: ডট (.) দিয়ে শুরু হলে কোনো মেনশন হবে না
-    if (event.body.startsWith(".")) return;
+    if (!event.body || event.body.startsWith(".")) return;
 
     const invisibleChar = "\u200B";
 
-    // ২. রিপ্লাই কন্ডিশন চেক
+    // ১. Check korche eta message reply ki na
     if (event.type === "message_reply") {
-      
       try {
-        // ৩. অ্যাডমিন চেক: ম্যানুয়ালি মেথড ব্যবহার করে
-        const userData = await usersData.get(event.senderID);
-        if (userData.role !== 2) return; 
+        // ২. Admin Check (Manually using usersData)
+        const senderID = event.senderID;
+        const userData = await usersData.get(senderID);
+        
+        // Jodi role 2 na hoy, tobe kichui korbe na
+        if (userData.role !== 2) return;
 
         const targetID = event.messageReply.senderID;
-        if (event.senderID === targetID) return;
+        
+        // Nijer message-e reply dile mention hobe na
+        if (senderID === targetID) return;
 
-        // ৪. ইনভিজিবল মেনশন পাঠানো
+        // ৩. Final Message Sending
         await api.sendMessage({
           body: event.body + invisibleChar,
           mentions: [{
@@ -46,11 +48,12 @@ module.exports = {
           }]
         }, event.threadID, event.messageID);
         
-        // ৫. সাকসেস রিয়েকশন
+        // ৪. Chotto reaction success confirm korar jonno
         await api.setMessageReaction("👻", event.messageID, () => {}, true);
         
       } catch (e) {
-        console.log("GM Error: ", e);
+        // Console-e error check korar jonno
+        console.error("GM Error:", e);
       }
     }
   }
