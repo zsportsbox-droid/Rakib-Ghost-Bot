@@ -12,7 +12,7 @@ function saveData(data){
 }
 
 module.exports = {
-  config:{name:"treasure",author:"GPT VIP",category:"game",description:"Treasure Hunt"},
+  config:{name:"treasure",author:"Rakib Islam",category:"game",description:"Treasure Hunt"},
 
   onStart: async({api,event,args})=>{
     if(!args[0]) 

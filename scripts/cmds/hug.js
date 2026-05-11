@@ -1,71 +1,86 @@
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+const { loadImage, createCanvas } = require("canvas");
 
 module.exports = {
   config: {
     name: "hug",
-    version: "1.0",
-    author: "Saimx69x",
+    aliases: ["hug"],
+    version: "1.1",
+    author: "Rakib Islam",
     countDown: 5,
     role: 0,
-    description:
-      "🤗 Create a cute hug image between you and your tagged partner! Just tag or reply to someone 💞",
-    category: "love",
-    guide: {
-      en: "{pn} @tag or reply — Generate hug image 🤗"
-    }
+    shortDescription: "Give someone a hug!",
+    longDescription: "A fun command to give someone a hug with a picture.",
+    category: "fun",
+    guide: "{pn} @mention or reply",
   },
 
-  langs: {
-    en: {
-      noTag: "Please tag someone or reply to their message to use this command 🤗",
-      fail: "❌ | Couldn't generate hug image, Please try again later."
-    }
-  },
+  onStart: async function ({ event, api, usersData }) {
+    let mention = Object.keys(event.mentions)[0];
+    let targetID = mention || event.messageReply?.senderID;
 
-  onStart: async function ({ event, message, usersData, args, getLang }) {
-    const uid1 = event.senderID;
-    let uid2 = Object.keys(event.mentions || {})[0];
-    if (!uid2 && event.messageReply?.senderID) uid2 = event.messageReply.senderID;
-    if (!uid2) return message.reply(getLang("noTag"));
+    if (!targetID)
+      return api.sendMessage("Who would you like to hug? Please tag someone or reply to a message!", event.threadID, event.messageID);
 
-    try {
-      const [name1, name2] = await Promise.all([
-        usersData.getName(uid1).catch(() => "Unknown"),
-        usersData.getName(uid2).catch(() => "Unknown")
-      ]);
+    const huggerID = event.senderID;
 
-      const [avatar1, avatar2] = await Promise.all([
-        usersData.getAvatarUrl(uid1),
-        usersData.getAvatarUrl(uid2)
-      ]);
+    const getAvatar = async (uid) => {
+      try {
+        const url = `https://graph.facebook.com/${uid}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`;
+        const avatarPath = path.join(__dirname, `${uid}_avatar.png`);
+        const res = await axios.get(url, { responseType: "arraybuffer" });
+        fs.writeFileSync(avatarPath, res.data);
+        return avatarPath;
+      } catch (err) {
+        console.error(`Error fetching avatar for user ${uid}: ${err.message}`);
+        return "";
+      }
+    };
 
-      const GITHUB_RAW = "https://raw.githubusercontent.com/Saim-x69x/sakura/main/ApiUrl.json";
-      const rawRes = await axios.get(GITHUB_RAW);
-      const apiBase = rawRes.data.apiv1;
-      const apiURL = `${apiBase}/api/hug?boy=${encodeURIComponent(avatar1)}&girl=${encodeURIComponent(avatar2)}`;
+    const bg = await loadImage("https://i.imgur.com/eUNHCj3.jpeg");
+    const canvas = createCanvas(bg.width, bg.height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bg, 0, 0);
 
-      const response = await axios.get(apiURL, { responseType: "arraybuffer" });
+    const huggerAvatarPath = await getAvatar(huggerID);
+    const targetAvatarPath = await getAvatar(targetID);
 
-      const savePath = path.join(__dirname, "tmp");
-      await fs.ensureDir(savePath);
-      const imgPath = path.join(savePath, `${uid1}_${uid2}_hug.jpg`);
-      await fs.writeFile(imgPath, response.data);
+    const huggerAvatar = await loadImage(huggerAvatarPath);
+    const targetAvatar = await loadImage(targetAvatarPath);
 
-      const text = `🤗 ${name1} just hugged ${name2}! ❤️`;
-      await message.reply({
-        body: text,
-        attachment: fs.createReadStream(imgPath)
-      });
+    
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(285, 110, 50, 0, Math.PI * 2);  
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(huggerAvatar, 235, 60, 100, 100);  
+    ctx.restore();
 
-      setTimeout(() => {
-        if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-      }, 5000);
+    
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(460, 160, 50, 0, Math.PI * 2);  
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(targetAvatar, 410, 110, 100, 100);  
 
-    } catch (err) {
-      console.error("❌ Hug command error:", err);
-      return message.reply(getLang("fail"));
-    }
+    const output = path.join(__dirname, "hug_output.png");
+    fs.writeFileSync(output, canvas.toBuffer("image/png"));
+
+    const senderName = await usersData.getName(huggerID);
+    const targetName = event.mentions[mention] || (event.messageReply?.senderName || "Friend");
+
+    api.sendMessage({
+      body: `😍 I've just hugged ${targetName}! \n${senderName} is giving a warm hug to ${targetName}!`,
+      attachment: fs.createReadStream(output),
+      mentions: [{ tag: targetName, id: targetID }],
+}, event.threadID, () => {
+      fs.unlinkSync(output);
+      fs.unlinkSync(huggerAvatarPath);
+      fs.unlinkSync(targetAvatarPath);
+    }, event.messageID);
   }
 };

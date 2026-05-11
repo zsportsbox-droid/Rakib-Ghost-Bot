@@ -1,110 +1,95 @@
-const axios = require("axios");
-const fs = require("fs-extra");
-const path = require("path");
+const axios = require('axios');
+const fs = require('fs-extra'); 
+const path = require('path');
 
-const CACHE = path.join(__dirname, "cache");
-
-const MODELS = [
-  { id: "flux-pro",   label: "Flux.1 Pro" },
-  { id: "flux",       label: "Flux.1 Dev" },
-  { id: "turbo",      label: "Turbo (fast)" },
-];
+const API_ENDPOINT = "https://dev.oculux.xyz/api/flux-1.1-pro"; 
 
 module.exports = {
   config: {
     name: "fluxpro",
-    version: "3.0",
-    role: 0,
+    aliases: ["fpro", "flux11"],
+    version: "1.0", 
     author: "Rakib Islam",
-    description: "Generate images with Flux.1 Pro (Pollinations AI — free, no key)",
-    category: "ai-image",
     countDown: 15,
+    role: 0,
+    longDescription: "Generate an image using the Flux 1.1 Pro model.",
+    category: "ai-image",
     guide: {
-      en: "{pn} <prompt>\n{pn} <prompt> --model flux/turbo\n\nExamples:\n{pn} futuristic city at night\n{pn} cute anime girl --model turbo"
+      en: "{pn} <prompt>"
     }
   },
 
-  onStart: async function ({ message, args, event, api }) {
-    if (!args[0]) {
-      return message.reply(
-        `╔══════════════════════╗\n` +
-        `║  🎨 Flux Pro Image AI  ║\n` +
-        `╚══════════════════════╝\n\n` +
-        `  ✦ Usage  › .fluxpro <prompt>\n` +
-        `  ✦ Models › flux-pro, flux, turbo\n\n` +
-        `  📌 Examples:\n` +
-        `  › .fluxpro futuristic city at night\n` +
-        `  › .fluxpro anime girl with wings\n` +
-        `  › .fluxpro dragon in space --model turbo\n\n` +
-        `  ⚡ Powered by Pollinations AI (free)`
-      );
-    }
-
+  onStart: async function({ message, args, event }) {
+    
     let prompt = args.join(" ");
-    let modelId = "flux-pro";
-    let modelLabel = "Flux.1 Pro";
 
-    const modelMatch = prompt.match(/--model\s+(\S+)/i);
-    if (modelMatch) {
-      const requested = modelMatch[1].toLowerCase();
-      const found = MODELS.find(m => m.id === requested || m.label.toLowerCase().includes(requested));
-      if (found) { modelId = found.id; modelLabel = found.label; }
-      prompt = prompt.replace(/--model\s+\S+/i, "").trim();
+    if (!prompt || !/^[\x00-\x7F]*$/.test(prompt)) {
+        return message.reply("❌ Please provide a valid English prompt to generate an image.");
     }
 
-    const startTime = Date.now();
-    api.setMessageReaction("⏳", event.messageID, () => {}, true);
+    message.reaction("⏳", event.messageID);
+    let tempFilePath; 
 
-    await fs.ensureDir(CACHE);
+    try {
+      const fullApiUrl = `${API_ENDPOINT}?prompt=${encodeURIComponent(prompt.trim())}`;
+      
+      const imageDownloadResponse = await axios.get(fullApiUrl, {
+          responseType: 'stream',
+          timeout: 60000 // Extended timeout for large models
+      });
 
-    let imgPath = null;
-    let usedModel = modelLabel;
+      if (imageDownloadResponse.status !== 200) {
+           throw new Error(`API request failed with status code ${imageDownloadResponse.status}.`);
+      }
+      
+      const cacheDir = path.join(__dirname, 'cache');
+      if (!fs.existsSync(cacheDir)) {
+          await fs.mkdirp(cacheDir); 
+      }
+      
+      tempFilePath = path.join(cacheDir, `fluxpro_output_${Date.now()}.png`);
+      
+      const writer = fs.createWriteStream(tempFilePath);
+      imageDownloadResponse.data.pipe(writer);
 
-    // Try primary model, then fallback to others
-    const tryOrder = [modelId, ...MODELS.map(m => m.id).filter(id => id !== modelId)];
-
-    for (const mid of tryOrder) {
-      try {
-        const seed = Math.floor(Math.random() * 999999);
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?model=${mid}&width=1024&height=1024&seed=${seed}&nologo=true&private=true`;
-
-        const res = await axios.get(url, {
-          responseType: "arraybuffer",
-          timeout: 60000,
-          headers: { "User-Agent": "Mozilla/5.0" }
+      await new Promise((resolve, reject) => {
+        writer.on("finish", resolve);
+        writer.on("error", (err) => {
+          writer.close();
+          reject(err);
         });
+      });
 
-        if (res.status === 200 && res.data?.byteLength > 1000) {
-          imgPath = path.join(CACHE, `fluxpro_${Date.now()}.jpg`);
-          await fs.writeFile(imgPath, res.data);
-          usedModel = MODELS.find(m => m.id === mid)?.label || mid;
-          break;
-        }
-      } catch (e) {}
+      message.reaction("✅", event.messageID);
+      await message.reply({
+        body: `Flux Pro image generated ✨`,
+        attachment: fs.createReadStream(tempFilePath)
+      });
+
+    } catch (error) {
+      message.reaction("❌", event.messageID);
+      
+      let errorMessage = "An error occurred during image generation.";
+      if (error.response) {
+         if (error.response.status === 404) {
+             errorMessage = "API Endpoint not found (404).";
+         } else {
+             errorMessage = `HTTP Error: ${error.response.status}`;
+         }
+      } else if (error.code === 'ETIMEDOUT') {
+         errorMessage = `Generation timed out. Try a simpler prompt or check API status.`;
+      } else if (error.message) {
+         errorMessage = `${error.message}`;
+      } else {
+         errorMessage = `Unknown error.`;
+      }
+
+      console.error("FluxPro Command Error:", error);
+      message.reply(`❌ ${errorMessage}`);
+    } finally {
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+          await fs.unlink(tempFilePath); 
+      }
     }
-
-    if (!imgPath) {
-      api.setMessageReaction("❌", event.messageID, () => {}, true);
-      return message.reply(
-        `❌ Image generate করা যায়নি!\n\n` +
-        `💡 অন্য prompt দিয়ে try করো`
-      );
-    }
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    api.setMessageReaction("✅", event.messageID, () => {}, true);
-
-    await message.reply({
-      body:
-        `╔══════════════════════╗\n` +
-        `║  ✅ Image Generated!   ║\n` +
-        `╚══════════════════════╝\n` +
-        `  ✦ Model  › ${usedModel}\n` +
-        `  ✦ Time   › ${elapsed}s\n` +
-        `  ✦ Prompt › ${prompt.substring(0, 60)}${prompt.length > 60 ? "..." : ""}`,
-      attachment: fs.createReadStream(imgPath)
-    });
-
-    setTimeout(() => { try { fs.unlinkSync(imgPath); } catch {} }, 20000);
   }
 };

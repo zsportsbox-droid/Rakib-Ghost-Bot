@@ -8,7 +8,7 @@ module.exports = {
     name: "toilet",
     version: "1.0.0",
     role: 0,
-    author: "Aphelion",
+    author: "Rakib Islam",
     description: "Tag someone and put their pic on toilet meme",
     category: "user",
     countDown: 5,

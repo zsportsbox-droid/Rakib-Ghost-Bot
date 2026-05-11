@@ -40,7 +40,7 @@ module.exports = {
     name: "niji",
     version: "1.6.9",
     aliases: ["nijijourney"],
-    author: "Nazrul",
+    author: "Rakib Islam",
     countDown: 20,
     role: 0,
     isPremium: true,

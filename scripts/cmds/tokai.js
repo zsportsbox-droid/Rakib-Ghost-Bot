@@ -16,8 +16,8 @@ const baseApiUrl = async () => {
 
 module.exports = {
   config: {
-    name: "dhur",
-    aliases: ["gum"],
+    name: "tokai",
+    aliases: ["toqai"],
     version: "1.7",
     author: "Rakib Islam",
     role: 0,
@@ -61,7 +61,7 @@ module.exports = {
       fs.writeFileSync(filePath, response.data);
       
       api.sendMessage(
-        { attachment: fs.createReadStream(filePath), body: "Here's your gum image 🐸" },
+        { attachment: fs.createReadStream(filePath), body: "Here's your tokai image 🐸" },
         threadID,
         () => fs.unlinkSync(filePath),
         messageID

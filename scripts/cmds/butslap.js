@@ -16,14 +16,14 @@ const baseApiUrl = async () => {
 
 module.exports = {
   config: {
-    name: "kiss2",
-    aliases: ["k2"],
+    name: "butslap",
+    aliases: ["buttslap"],
     version: "1.7",
-    author: "MahMUD",
+    author: "Rakib Islam",
     role: 0,
     category: "fun",
     cooldown: 8,
-    guide: "kiss2 [mention/reply/UID]",
+    guide: "slap [mention/reply/UID]",
   },
 
   onStart: async function ({ api, event, args }) {
@@ -51,16 +51,16 @@ module.exports = {
     }
 
     try {
-      const url = `${await baseApiUrl()}/api/dig?type=kiss&user=${id}&user2=${id2}`;
+      const url = `${await baseApiUrl()}/api/dig?type=buttslap&user=${id}&user2=${id2}`;
 
       const response = await axios.get(url, { responseType: "arraybuffer" });
-      const filePath = path.join(__dirname, `kiss_${id2}.png`);
+      const filePath = path.join(__dirname, `slap_${id2}.png`);
       fs.writeFileSync(filePath, response.data);
 
       api.sendMessage(
         {
           attachment: fs.createReadStream(filePath),
-          body: `Effect kiss successful 💋`
+          body: `Effect: buttslap successful 💥`
         },
         threadID,
         () => fs.unlinkSync(filePath),
